@@ -13,6 +13,13 @@ import {
   reserveUnit,
   getInventory,
 } from './verticals/real-estate/units/units.service.js';
+import {
+  CreateContractSchema,
+  RecordPaymentSchema,
+  createContractWithPaymentPlan,
+  recordPaymentAndAllocate,
+  getContractDetails,
+} from './commercial/contracts/contracts.service.js';
 
 export function buildServer() {
   const app = Fastify({ logger: false });
@@ -20,7 +27,7 @@ export function buildServer() {
 
   app.get('/health', async () => ({
     status: 'OK',
-    service: 'MotionCRM Core & Real Estate Engine',
+    service: 'MotionCRM Enterprise Engine',
     timestamp: new Date().toISOString(),
   }));
 
@@ -69,7 +76,7 @@ export function buildServer() {
     }
   });
 
-  // Real Estate Module
+  // Real Estate Inventory
   app.post('/api/v1/real-estate/projects', async (req, reply) => {
     try {
       const orgId = req.headers['x-org-id'] as string;
@@ -117,6 +124,37 @@ export function buildServer() {
     try {
       const units = await getInventory(req.query as any);
       return reply.send({ success: true, count: units.length, inventory: units });
+    } catch (err: any) {
+      return reply.code(400).send({ success: false, error: err.message });
+    }
+  });
+
+  // Commercial & Financial Engine
+  app.post('/api/v1/commercial/contracts', async (req, reply) => {
+    try {
+      const parsed = CreateContractSchema.parse(req.body);
+      const contract = await createContractWithPaymentPlan(parsed);
+      return reply.code(201).send({ success: true, contract });
+    } catch (err: any) {
+      return reply.code(400).send({ success: false, error: err.message });
+    }
+  });
+
+  app.post('/api/v1/commercial/payments', async (req, reply) => {
+    try {
+      const parsed = RecordPaymentSchema.parse(req.body);
+      const result = await recordPaymentAndAllocate(parsed);
+      return reply.code(201).send({ success: true, ...result });
+    } catch (err: any) {
+      return reply.code(400).send({ success: false, error: err.message });
+    }
+  });
+
+  app.get('/api/v1/commercial/contracts/:contractId', async (req, reply) => {
+    try {
+      const { contractId } = req.params as { contractId: string };
+      const details = await getContractDetails(contractId);
+      return reply.send({ success: true, contract: details });
     } catch (err: any) {
       return reply.code(400).send({ success: false, error: err.message });
     }
