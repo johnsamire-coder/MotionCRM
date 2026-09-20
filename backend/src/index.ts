@@ -20,6 +20,15 @@ import {
   recordPaymentAndAllocate,
   getContractDetails,
 } from './commercial/contracts/contracts.service.js';
+import {
+  verifyMetaWebhook,
+  processMetaLeadgenEvent,
+  MetaLeadgenPayload,
+} from './integrations/meta/meta.service.js';
+import {
+  generateLeadIntelligence,
+  generateSmartReply,
+} from './integrations/ai-gateway/ai.service.js';
 
 export function buildServer() {
   const app = Fastify({ logger: false });
@@ -155,6 +164,52 @@ export function buildServer() {
       const { contractId } = req.params as { contractId: string };
       const details = await getContractDetails(contractId);
       return reply.send({ success: true, contract: details });
+    } catch (err: any) {
+      return reply.code(400).send({ success: false, error: err.message });
+    }
+  });
+
+  // Meta Integration Gateway
+  app.get('/api/v1/integrations/meta/webhook', async (req, reply) => {
+    const query = req.query as { 'hub.mode'?: string; 'hub.verify_token'?: string; 'hub.challenge'?: string };
+    const challenge = verifyMetaWebhook(query['hub.mode'], query['hub.verify_token'], query['hub.challenge']);
+    if (challenge) return reply.code(200).send(challenge);
+    return reply.code(403).send({ error: 'Verification failed: invalid token' });
+  });
+
+  app.post('/api/v1/integrations/meta/webhook', async (req, reply) => {
+    try {
+      const orgId = req.headers['x-org-id'] as string;
+      if (!orgId) return reply.code(400).send({ error: 'Header x-org-id is required' });
+      const payload = req.body as MetaLeadgenPayload;
+      const result = await processMetaLeadgenEvent(orgId, payload);
+      return reply.send({ success: true, result });
+    } catch (err: any) {
+      return reply.code(500).send({ error: err.message });
+    }
+  });
+
+  // Agnostic AI Gateway Routes
+  app.get('/api/v1/ai/leads/:leadId/intelligence', async (req, reply) => {
+    try {
+      const orgId = req.headers['x-org-id'] as string;
+      if (!orgId) return reply.code(400).send({ success: false, error: 'Header x-org-id is required' });
+      const { leadId } = req.params as { leadId: string };
+      const intelligence = await generateLeadIntelligence(orgId, leadId);
+      return reply.send({ success: true, intelligence });
+    } catch (err: any) {
+      return reply.code(400).send({ success: false, error: err.message });
+    }
+  });
+
+  app.post('/api/v1/ai/leads/:leadId/suggest-reply', async (req, reply) => {
+    try {
+      const orgId = req.headers['x-org-id'] as string;
+      if (!orgId) return reply.code(400).send({ success: false, error: 'Header x-org-id is required' });
+      const { leadId } = req.params as { leadId: string };
+      const { message } = (req.body as { message?: string }) || {};
+      const result = await generateSmartReply(orgId, leadId, message || '');
+      return reply.send({ success: true, ...result });
     } catch (err: any) {
       return reply.code(400).send({ success: false, error: err.message });
     }
