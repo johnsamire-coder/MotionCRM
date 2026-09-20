@@ -218,7 +218,12 @@ export function buildServer() {
   return app;
 }
 
-if (process.env.NODE_ENV !== 'test') {
+const isDirectExecution = process.argv[1] && (
+  process.argv[1].endsWith('index.ts') || 
+  process.argv[1].endsWith('index.js')
+);
+
+if (isDirectExecution && process.env.NODE_ENV !== 'test') {
   const server = buildServer();
   const PORT = Number(process.env.PORT) || 4000;
   server.listen({ port: PORT, host: '0.0.0.0' }, (err, address) => {

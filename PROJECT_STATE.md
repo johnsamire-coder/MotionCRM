@@ -1,4 +1,4 @@
-# MOTIONCRM — PROJECT MASTER STATE
+﻿# MOTIONCRM — PROJECT MASTER STATE
 
 ## 1. GENERAL INFO
 - **Project Name:** MotionCRM
@@ -8,35 +8,32 @@
 - **Current Environment:** Work Laptop
 - **Target Environment:** Home Laptop
 - **GitHub Sync Status:** FULLY SYNCED
-- **Total Automated Tests:** 24/24 Integration Tests Passed (100% Success Rate)
-- **Status:** VERIFIED & PRODUCTION READY
+- **Test Suite Status:** 24/24 Integration Tests Passed (100% Success Rate - Clean Teardown - Exit Code 0)
+- **Status:** BACKEND SUITE VERIFIED ON WORK LAPTOP
 
 ## 2. VERIFIED ARCHITECTURAL LAYERS & CAPABILITIES
-- [x] **Layer 1: Core CRM & IAM (6 Tests):** Multi-Tenancy, Role-Based Access Control (RBAC), Leads Deduplication & Phone Index.
-- [x] **Layer 2: Real Estate Vertical Module (5 Tests):** Projects, Buildings, Units Hierarchy, Inventory Matrix, ACID Concurrency Lock (Anti-Double-Booking).
-- [x] **Layer 3: Commercial & Financial Engine (4 Tests):** Customer Contracts, Installment Schedule Generator, Waterfall Payment Allocation, Rules-Based Commissions.
-- [x] **Layer 4: Meta Ads Integration Gateway (5 Tests):** Webhook Handshake, Leadgen Payload Ingestion, Field Mapping & Campaign Attribution.
-- [x] **Layer 5: Agnostic AI Gateway (4 Tests):** Lead Scoring (HOT/WARM/COLD), Inventory Matching, Next Best Action & Smart Sales Replies.
-- [x] **Layer 6: Interactive Frontend Cockpit:** React 19 + TypeScript + Vite + Tailwind CSS Dark Modern Cockpit.
+- [x] **Layer 1: Core CRM & IAM (6/6 Tests Passed):** Multi-Tenancy (Org isolation), RBAC structure, Leads Deduplication & Phone Indexing.
+- [x] **Layer 2: Real Estate Vertical Module (5/5 Tests Passed):** Projects, Buildings, Units Hierarchy, Inventory Matrix, ACID Concurrency Lock (Anti-Double-Booking).
+- [x] **Layer 3: Commercial & Financial Engine (4/4 Tests Passed):** Customer Contracts, Installment Schedule Generator, Waterfall Payment Allocation, Rules-Based Commissions.
+- [x] **Layer 4: Meta Ads Integration Gateway (5/5 Tests Passed):** Webhook Handshake, Leadgen Payload Ingestion, Field Mapping & Campaign Attribution.
+- [x] **Layer 5: Agnostic AI Gateway (4/4 Tests Passed):** Lead Scoring (HOT/WARM/COLD), Inventory Matching, Next Best Action & Smart Sales Context Replies.
+- [ ] **Layer 6: Comprehensive Multi-Role Granular Permissions (IAM/RBAC Deep-Dive):** Employee vs Manager vs HR vs Owner granular field & action security (Pending Next Milestone).
+- [ ] **Layer 7: Cross-Platform Frontend & Mobile Application:** React Web Cockpit + React Native / Expo Mobile App.
 
-## 3. HOME LAPTOP SETUP INSTRUCTIONS (STEP-BY-STEP)
-When opening your Home Laptop, run the following in PowerShell:
-```powershell
-# 1. Clone repository from GitHub
-git clone https://github.com/johnsamire-coder/MotionCRM.git C:\MotionCRM
-cd C:\MotionCRM
+## 3. VERIFIED TEST SUITES (24/24 PASS)
+1. tests/core_crm.test.ts (6/6 PASS)
+2. tests/inventory_engine.test.ts (5/5 PASS)
+3. tests/commercial_engine.test.ts (4/4 PASS)
+4. tests/meta_integration.test.ts (5/5 PASS)
+5. tests/ai_gateway.test.ts (4/4 PASS)
 
-# 2. Setup Backend Engine & Database
-cd backend
-npm install
-npx prisma generate
-npx prisma db push
-
-# 3. Setup Frontend Cockpit
-cd ..\frontend
-npm install
-
-# 4. Launch Full Stack
-cd ..
-.\start_dev.ps1
-```
+## 4. ENVIRONMENT SYNC INSTRUCTIONS (FOR HOME LAPTOP)
+When moving to Home Laptop:
+1. git pull origin main
+2. cd backend
+3. npx tsx tests/core_crm.test.ts
+4. npx tsx tests/inventory_engine.test.ts
+5. npx tsx tests/commercial_engine.test.ts
+6. npx tsx tests/meta_integration.test.ts
+7. npx tsx tests/ai_gateway.test.ts
+8. cd ..
