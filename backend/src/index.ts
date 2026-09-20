@@ -2,19 +2,29 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { RegisterOrgSchema, LoginSchema, registerOrganization, loginUser } from './core/auth/auth.service.js';
 import { CreateLeadSchema, createLead, getLeads } from './core/leads/leads.service.js';
-import { prisma } from './core/prisma.js';
+import {
+  CreateProjectSchema,
+  CreateBuildingSchema,
+  CreateUnitSchema,
+  ReserveUnitSchema,
+  createProject,
+  createBuilding,
+  createUnit,
+  reserveUnit,
+  getInventory,
+} from './verticals/real-estate/units/units.service.js';
 
 export function buildServer() {
   const app = Fastify({ logger: false });
-
   app.register(cors, { origin: true });
 
-  // Health Check
-  app.get('/health', async () => {
-    return { status: 'OK', service: 'MotionCRM Core Engine', timestamp: new Date().toISOString() };
-  });
+  app.get('/health', async () => ({
+    status: 'OK',
+    service: 'MotionCRM Core & Real Estate Engine',
+    timestamp: new Date().toISOString(),
+  }));
 
-  // IAM & Auth Routes
+  // Auth
   app.post('/api/v1/auth/register-org', async (req, reply) => {
     try {
       const parsed = RegisterOrgSchema.parse(req.body);
@@ -35,14 +45,11 @@ export function buildServer() {
     }
   });
 
-  // Core CRM Leads Routes
+  // Leads
   app.post('/api/v1/leads', async (req, reply) => {
     try {
       const orgId = req.headers['x-org-id'] as string;
-      if (!orgId) {
-        return reply.code(400).send({ success: false, error: 'Header x-org-id is required' });
-      }
-
+      if (!orgId) return reply.code(400).send({ success: false, error: 'Header x-org-id is required' });
       const parsed = CreateLeadSchema.parse(req.body);
       const lead = await createLead(orgId, parsed);
       return reply.code(201).send({ success: true, lead });
@@ -54,13 +61,62 @@ export function buildServer() {
   app.get('/api/v1/leads', async (req, reply) => {
     try {
       const orgId = req.headers['x-org-id'] as string;
-      if (!orgId) {
-        return reply.code(400).send({ success: false, error: 'Header x-org-id is required' });
-      }
-
-      const query = req.query as any;
-      const leads = await getLeads(orgId, query);
+      if (!orgId) return reply.code(400).send({ success: false, error: 'Header x-org-id is required' });
+      const leads = await getLeads(orgId, req.query as any);
       return reply.send({ success: true, count: leads.length, leads });
+    } catch (err: any) {
+      return reply.code(400).send({ success: false, error: err.message });
+    }
+  });
+
+  // Real Estate Module
+  app.post('/api/v1/real-estate/projects', async (req, reply) => {
+    try {
+      const orgId = req.headers['x-org-id'] as string;
+      if (!orgId) return reply.code(400).send({ success: false, error: 'Header x-org-id is required' });
+      const parsed = CreateProjectSchema.parse(req.body);
+      const project = await createProject(orgId, parsed);
+      return reply.code(201).send({ success: true, project });
+    } catch (err: any) {
+      return reply.code(400).send({ success: false, error: err.message });
+    }
+  });
+
+  app.post('/api/v1/real-estate/buildings', async (req, reply) => {
+    try {
+      const parsed = CreateBuildingSchema.parse(req.body);
+      const building = await createBuilding(parsed);
+      return reply.code(201).send({ success: true, building });
+    } catch (err: any) {
+      return reply.code(400).send({ success: false, error: err.message });
+    }
+  });
+
+  app.post('/api/v1/real-estate/units', async (req, reply) => {
+    try {
+      const parsed = CreateUnitSchema.parse(req.body);
+      const unit = await createUnit(parsed);
+      return reply.code(201).send({ success: true, unit });
+    } catch (err: any) {
+      return reply.code(400).send({ success: false, error: err.message });
+    }
+  });
+
+  app.post('/api/v1/real-estate/units/:unitId/reserve', async (req, reply) => {
+    try {
+      const { unitId } = req.params as { unitId: string };
+      const parsed = ReserveUnitSchema.parse(req.body);
+      const result = await reserveUnit(unitId, parsed);
+      return reply.code(201).send({ success: true, ...result });
+    } catch (err: any) {
+      return reply.code(400).send({ success: false, error: err.message });
+    }
+  });
+
+  app.get('/api/v1/real-estate/inventory', async (req, reply) => {
+    try {
+      const units = await getInventory(req.query as any);
+      return reply.send({ success: true, count: units.length, inventory: units });
     } catch (err: any) {
       return reply.code(400).send({ success: false, error: err.message });
     }
@@ -69,7 +125,6 @@ export function buildServer() {
   return app;
 }
 
-// Start standalone if executed directly
 if (process.env.NODE_ENV !== 'test') {
   const server = buildServer();
   const PORT = Number(process.env.PORT) || 4000;
@@ -78,6 +133,6 @@ if (process.env.NODE_ENV !== 'test') {
       console.error(err);
       process.exit(1);
     }
-    console.log(`🚀 MotionCRM Core API listening on ${address}`);
+    console.log(`🚀 MotionCRM API listening on ${address}`);
   });
 }
