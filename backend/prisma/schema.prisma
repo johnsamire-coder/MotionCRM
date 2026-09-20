@@ -1,0 +1,354 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// LAYER 1: CORE CRM & IAM
+// ==========================================
+
+model Organization {
+  id          String   @id @default(uuid())
+  name        String
+  code        String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  roles       Role[]
+  leads       Lead[]
+  accounts    Account[]
+  projects    Project[]
+}
+
+model User {
+  id             String    @id @default(uuid())
+  orgId          String
+  email          String    @unique
+  passwordHash   String
+  fullName       String
+  phone          String?
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userRoles      UserRole[]
+  assignedLeads  Lead[]       @relation("AssignedSalesRep")
+  activities     Activity[]
+  commissions    CommissionRecord[]
+
+  @@index([orgId])
+}
+
+model Role {
+  id          String     @id @default(uuid())
+  orgId       String
+  name        String
+  description String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userRoles    UserRole[]
+
+  @@unique([orgId, name])
+}
+
+model UserRole {
+  userId    String
+  roleId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+}
+
+model Account {
+  id             String      @id @default(uuid())
+  orgId          String
+  accountType    String      @default("INDIVIDUAL")
+  name           String
+  phone          String?
+  email          String?
+  taxNumber      String?
+  nationalId     String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  organization   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  quotes         Quotation[]
+  contracts      Contract[]
+  reservations   Reservation[]
+  activities     Activity[]
+
+  @@index([orgId, phone])
+}
+
+model Lead {
+  id             String      @id @default(uuid())
+  orgId          String
+  assignedToId   String?
+  fullName       String
+  phone          String
+  email          String?
+  source         String      @default("MANUAL")
+  status         String      @default("NEW")
+  budget         Float?
+  notes          String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  organization   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  assignedSales  User?        @relation("AssignedSalesRep", fields: [assignedToId], references: [id])
+  activities     Activity[]
+
+  @@index([orgId, phone])
+  @@index([status])
+}
+
+model Activity {
+  id             String      @id @default(uuid())
+  userId         String
+  leadId         String?
+  accountId      String?
+  type           String
+  title          String
+  description    String?
+  scheduledAt    DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime    @default(now())
+
+  user           User        @relation(fields: [userId], references: [id])
+  lead           Lead?       @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  account        Account?    @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([leadId])
+}
+
+// ==========================================
+// LAYER 2: COMMERCIAL & FINANCIAL ENGINE
+// ==========================================
+
+model Quotation {
+  id             String      @id @default(uuid())
+  accountId      String
+  quoteNumber    String      @unique
+  totalAmount    Float
+  discountAmount Float       @default(0)
+  netAmount      Float
+  status         String      @default("DRAFT")
+  expiresAt      DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  account        Account     @relation(fields: [accountId], references: [id])
+  quoteUnits     QuoteUnit[]
+
+  @@index([accountId])
+}
+
+model QuoteUnit {
+  id             String      @id @default(uuid())
+  quotationId    String
+  unitId         String
+  unitPrice      Float
+  discount       Float       @default(0)
+  finalPrice     Float
+
+  quotation      Quotation   @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  unit           Unit        @relation(fields: [unitId], references: [id])
+
+  @@unique([quotationId, unitId])
+}
+
+model Contract {
+  id             String      @id @default(uuid())
+  contractNumber String      @unique
+  accountId      String
+  unitId         String      @unique
+  totalValue     Float
+  status         String      @default("ACTIVE")
+  signedAt       DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  account        Account      @relation(fields: [accountId], references: [id])
+  unit           Unit         @relation(fields: [unitId], references: [id])
+  paymentPlan    PaymentPlan?
+  handover       Handover?
+  commissions    CommissionRecord[]
+
+  @@index([accountId])
+}
+
+model PaymentPlan {
+  id                   String        @id @default(uuid())
+  contractId           String        @unique
+  totalAmount          Float
+  downPaymentAmount    Float
+  numberOfInstallments Int
+  status               String        @default("ACTIVE")
+  createdAt            DateTime      @default(now())
+
+  contract             Contract      @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  installments         Installment[]
+}
+
+model Installment {
+  id              String             @id @default(uuid())
+  paymentPlanId   String
+  installmentNo   Int
+  dueDate         DateTime
+  amount          Float
+  paidAmount      Float              @default(0)
+  status          String             @default("PENDING")
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  paymentPlan     PaymentPlan        @relation(fields: [paymentPlanId], references: [id], onDelete: Cascade)
+  allocations     PaymentAllocation[]
+
+  @@index([paymentPlanId, dueDate])
+}
+
+model Payment {
+  id              String             @id @default(uuid())
+  paymentNumber   String             @unique
+  amount          Float
+  paymentDate     DateTime           @default(now())
+  paymentMethod   String
+  referenceNo     String?
+  status          String             @default("CONFIRMED")
+  createdAt       DateTime           @default(now())
+
+  allocations     PaymentAllocation[]
+}
+
+model PaymentAllocation {
+  id              String      @id @default(uuid())
+  paymentId       String
+  installmentId   String
+  allocatedAmount Float
+  createdAt       DateTime    @default(now())
+
+  payment         Payment     @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  installment     Installment @relation(fields: [installmentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId])
+  @@index([installmentId])
+}
+
+model CommissionRecord {
+  id              String      @id @default(uuid())
+  contractId      String
+  salesRepId      String
+  baseAmount      Float
+  ratePercentage  Float
+  commissionAmount Float
+  status          String      @default("CALCULATED")
+  approvedAt      DateTime?
+  paidAt          DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  contract        Contract    @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  salesRep        User        @relation(fields: [salesRepId], references: [id])
+
+  @@index([contractId])
+  @@index([salesRepId])
+}
+
+// ==========================================
+// LAYER 3: REAL ESTATE VERTICAL MODULE
+// ==========================================
+
+model Project {
+  id          String      @id @default(uuid())
+  orgId       String
+  code        String      @unique
+  name        String
+  location    String?
+  description String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  buildings    Building[]
+
+  @@index([orgId])
+}
+
+model Building {
+  id          String      @id @default(uuid())
+  projectId   String
+  code        String
+  name        String
+  totalFloors Int         @default(1)
+  createdAt   DateTime    @default(now())
+
+  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  units       Unit[]
+
+  @@unique([projectId, code])
+}
+
+model Unit {
+  id            String       @id @default(uuid())
+  buildingId    String
+  unitNumber    String
+  floorNumber   Int
+  unitType      String
+  grossArea     Float
+  netArea       Float?
+  basePrice     Float
+  status        String       @default("AVAILABLE")
+  version       Int          @default(1)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  building      Building     @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  quoteUnits    QuoteUnit[]
+  reservations  Reservation[]
+  contract      Contract?
+
+  @@unique([buildingId, unitNumber])
+  @@index([status])
+}
+
+model Reservation {
+  id                String    @id @default(uuid())
+  reservationNumber String    @unique
+  unitId            String
+  accountId         String
+  depositAmount     Float
+  expiresAt         DateTime
+  status            String    @default("ACTIVE")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  unit              Unit      @relation(fields: [unitId], references: [id])
+  account           Account   @relation(fields: [accountId], references: [id])
+
+  @@index([unitId])
+  @@index([accountId])
+}
+
+model Handover {
+  id              String    @id @default(uuid())
+  contractId      String    @unique
+  inspectionDate  DateTime?
+  handoverDate    DateTime?
+  snaggingStatus  String    @default("PENDING")
+  status          String    @default("PENDING_INSPECTION")
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  contract        Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+}
